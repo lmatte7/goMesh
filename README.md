@@ -17,6 +17,7 @@ This example uses the Mac port name from the ESP32 drivers
 There are multiple available functions to interact with the radios and perform different functions.
 
 ```
+r := gomesh.Radio{}
 responses, err := r.GetRadioInfo()
 if err != nil {
   return err

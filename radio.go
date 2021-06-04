@@ -426,7 +426,7 @@ func (r *Radio) SetChannelURL(url string) error {
 		adminPacket := pb.AdminMessage{
 			Variant: &pb.AdminMessage_SetChannel{
 				SetChannel: &pb.Channel{
-					Index: 1,
+					Index: int32(i),
 					Role:  role,
 					Settings: &pb.ChannelSettings{
 						Psk:         protoChannel.Psk,
@@ -478,7 +478,7 @@ func (r *Radio) SetModemMode(channel int) error {
 	adminPacket := pb.AdminMessage{
 		Variant: &pb.AdminMessage_SetChannel{
 			SetChannel: &pb.Channel{
-				Index: 1,
+				Index: 0,
 				Role:  chanSettings.GetGetChannelResponse().GetRole(),
 				Settings: &pb.ChannelSettings{
 					Psk:         chanSettings.GetGetChannelResponse().GetSettings().GetPsk(),

@@ -134,19 +134,17 @@ func TestSetModem(t *testing.T) {
 		t.Fatalf("Error when communicating with radio: %v", err)
 	}
 
-	// TODO: Finish verification for this test
 	chanSettings, err := radio.GetChannelInfo(1)
 	if err != nil {
 		t.Fatalf("Error retreiving channel settings: %v", err)
 	}
 
-	psk := []byte("\001")
-	if bytes.Compare(chanSettings.GetGetChannelResponse().GetSettings().GetPsk(), psk) != 0 {
-		t.Fatalf("Channel PSK not set correctly")
-	}
-
-	if chanSettings.GetGetChannelResponse().GetSettings().GetModemConfig() != pb.ChannelSettings_Bw125Cr48Sf4096 {
+	if chanSettings.GetGetChannelResponse().GetSettings().GetModemConfig() != pb.ChannelSettings_Bw500Cr45Sf128 {
 		t.Fatalf("Channel modem not set correctly")
+	}
+	err = radio.SetModemMode(0)
+	if err != nil {
+		t.Fatalf("Error when communicating with radio: %v", err)
 	}
 
 }

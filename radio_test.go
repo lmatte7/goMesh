@@ -154,7 +154,6 @@ func TestSetRadioPref(t *testing.T) {
 	}
 	defer radio.Close()
 
-	// TODO: Update test to set an actual preference
 	err = radio.SetUserPreferences("WifiApMode", "true")
 	if err != nil {
 		t.Fatalf("Error setting preference: %v", err)

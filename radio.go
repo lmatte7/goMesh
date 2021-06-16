@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"io"
 	"math/rand"
 	"reflect"
@@ -756,7 +755,6 @@ func (r *Radio) SetUserPreferences(key string, value string) error {
 
 	vType := fv.Type()
 
-	fmt.Printf("Kind: %v\n\n", vType.Kind())
 	// The acceptable values that can be set from the command line are uint32 and bool, so only check for those
 	switch vType.Kind() {
 	case reflect.Bool:

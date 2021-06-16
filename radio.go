@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"math/rand"
 	"reflect"
@@ -669,11 +670,11 @@ func (r *Radio) SetChannel(chIndex int, key string, value string) error {
 
 	fv := rPref.FieldByName(key)
 	if !fv.IsValid() {
-		return errors.New("Unknown Field")
+		return errors.New("unknown Field")
 	}
 
 	if !fv.CanSet() {
-		return errors.New("Unknown Field")
+		return errors.New("unknown Field")
 	}
 
 	vType := fv.Type()
@@ -746,15 +747,16 @@ func (r *Radio) SetUserPreferences(key string, value string) error {
 
 	fv := rPref.FieldByName(key)
 	if !fv.IsValid() {
-		return errors.New("Unknown Field")
+		return errors.New("unknown Field")
 	}
 
 	if !fv.CanSet() {
-		return errors.New("Unknown Field")
+		return errors.New("unknown Field")
 	}
 
 	vType := fv.Type()
 
+	fmt.Printf("Kind: %v\n\n", vType.Kind())
 	// The acceptable values that can be set from the command line are uint32 and bool, so only check for those
 	switch vType.Kind() {
 	case reflect.Bool:
@@ -769,6 +771,15 @@ func (r *Radio) SetUserPreferences(key string, value string) error {
 			return err
 		}
 		fv.SetUint(uintValue)
+	case reflect.Int32:
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil {
+			return err
+		}
+		fv.SetInt(intValue)
+	case reflect.String:
+		fv.SetString(value)
+
 	}
 
 	// Send settings to Radio

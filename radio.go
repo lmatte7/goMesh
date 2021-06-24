@@ -83,6 +83,7 @@ func (r *Radio) readResponse() (FromRadioPackets []*pb.FromRadio, err error) {
 	emptyByte := make([]byte, 0)
 	processedBytes := make([]byte, 0)
 	emptyByteCounter := 0
+	fByteCounter := 0
 	/************************************************************************************************
 	* Process the returned data byte by byte until we have a valid command
 	* Each command will come back with [START1, START2, PROTOBUF_PACKET]
@@ -93,10 +94,14 @@ func (r *Radio) readResponse() (FromRadioPackets []*pb.FromRadio, err error) {
 	 */
 	for {
 		_, err := r.serialPort.Read(b)
+		// fmt.Printf("Byte: %q\n", b)
 		if bytes.Compare(b, []byte("*")) == 0 {
 			emptyByteCounter++
 		}
-		if err == io.EOF || emptyByteCounter > 10 {
+		if bytes.Compare(b, []byte("F")) == 0 {
+			fByteCounter++
+		}
+		if err == io.EOF || emptyByteCounter > 10 || fByteCounter > 10 {
 			break
 		} else if err != nil {
 			return nil, err

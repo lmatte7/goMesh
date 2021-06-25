@@ -75,15 +75,15 @@ func (r *Radio) sendPacket(protobufPacket []byte) (err error) {
 
 }
 
-// readResponse reads any responses in the serial port, convert them to a FromRadio protobuf and return
-func (r *Radio) readResponse() (FromRadioPackets []*pb.FromRadio, err error) {
+// ReadResponse reads any responses in the serial port, convert them to a FromRadio protobuf and return
+func (r *Radio) ReadResponse() (FromRadioPackets []*pb.FromRadio, err error) {
 
 	b := make([]byte, 1)
 
 	emptyByte := make([]byte, 0)
 	processedBytes := make([]byte, 0)
-	emptyByteCounter := 0
-	fByteCounter := 0
+	repeatByteCounter := 0
+	previousByte := make([]byte, 1)
 	/************************************************************************************************
 	* Process the returned data byte by byte until we have a valid command
 	* Each command will come back with [START1, START2, PROTOBUF_PACKET]
@@ -95,17 +95,18 @@ func (r *Radio) readResponse() (FromRadioPackets []*pb.FromRadio, err error) {
 	for {
 		_, err := r.serialPort.Read(b)
 		// fmt.Printf("Byte: %q\n", b)
-		if bytes.Compare(b, []byte("*")) == 0 {
-			emptyByteCounter++
+		if bytes.Equal(b, previousByte) {
+			repeatByteCounter++
+		} else {
+			repeatByteCounter = 0
 		}
-		if bytes.Compare(b, []byte("F")) == 0 {
-			fByteCounter++
-		}
-		if err == io.EOF || emptyByteCounter > 10 || fByteCounter > 10 {
+
+		if err == io.EOF || repeatByteCounter > 20 {
 			break
 		} else if err != nil {
 			return nil, err
 		}
+		copy(previousByte, b)
 
 		if len(b) > 0 {
 
@@ -190,7 +191,7 @@ func (r *Radio) getNodeNum() (nodeNum uint32, err error) {
 
 	r.sendPacket(out)
 
-	radioResponses, err := r.readResponse()
+	radioResponses, err := r.ReadResponse()
 	if err != nil {
 		return 0, err
 	}
@@ -218,7 +219,7 @@ func (r *Radio) GetRadioInfo() (radioResponses []*pb.FromRadio, err error) {
 
 	r.sendPacket(out)
 
-	radioResponses, err = r.readResponse()
+	radioResponses, err = r.ReadResponse()
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +251,7 @@ func (r *Radio) GetRadioInfo() (radioResponses []*pb.FromRadio, err error) {
 	}
 	r.sendPacket(packetOut)
 
-	newResponses, err := r.readResponse()
+	newResponses, err := r.ReadResponse()
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +292,7 @@ func (r *Radio) GetChannelInfo(channel int) (channelSettings pb.AdminMessage, er
 	}
 	r.sendPacket(packetOut)
 
-	channelResponses, err := r.readResponse()
+	channelResponses, err := r.ReadResponse()
 	if err != nil {
 		return pb.AdminMessage{}, err
 	}
@@ -341,7 +342,7 @@ func (r *Radio) GetRadioPreferences() (radioPreferences pb.AdminMessage, err err
 	}
 	r.sendPacket(packetOut)
 
-	channelResponses, err := r.readResponse()
+	channelResponses, err := r.ReadResponse()
 	if err != nil {
 		return pb.AdminMessage{}, err
 	}

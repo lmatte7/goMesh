@@ -6,12 +6,12 @@ import (
 	"errors"
 	"io"
 	"math/rand"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/jacobsa/go-serial/serial"
 	pb "github.com/lmatte7/gomesh/github.com/meshtastic/gomeshproto"
 	"google.golang.org/protobuf/proto"
 )
@@ -27,31 +27,18 @@ const broadcastNum = 0xffffffff
 
 // Radio holds the port and serial io.ReadWriteCloser struct to maintain one serial connection
 type Radio struct {
-	portNumber string
-	serialPort io.ReadWriteCloser
+	streamer streamer
 }
 
 // Init initializes the Serial connection for the radio
-func (r *Radio) Init(serialPort string) error {
-	r.portNumber = serialPort
-	//Configure the serial port
-	options := serial.OpenOptions{
-		PortName:              r.portNumber,
-		BaudRate:              921600,
-		DataBits:              8,
-		StopBits:              1,
-		MinimumReadSize:       0,
-		InterCharacterTimeout: 100,
-		ParityMode:            serial.PARITY_NONE,
-	}
+func (r *Radio) Init(port string) error {
 
-	// Open the port.
-	port, err := serial.Open(options)
+	streamer := streamer{}
+	err := streamer.Init(port)
 	if err != nil {
 		return err
 	}
-
-	r.serialPort = port
+	r.streamer = streamer
 
 	return nil
 }
@@ -64,12 +51,10 @@ func (r *Radio) sendPacket(protobufPacket []byte) (err error) {
 	header := []byte{start1, start2, byte(packageLength>>8) & 0xff, byte(packageLength) & 0xff}
 
 	radioPacket := append(header, protobufPacket...)
-	_, err = r.serialPort.Write(radioPacket)
+	err = r.streamer.Write(radioPacket)
 	if err != nil {
 		return err
 	}
-
-	time.Sleep(100 * time.Millisecond)
 
 	return
 
@@ -93,7 +78,7 @@ func (r *Radio) ReadResponse() (FromRadioPackets []*pb.FromRadio, err error) {
 	* bytes is equal to the packet length plus the header
 	 */
 	for {
-		_, err := r.serialPort.Read(b)
+		err := r.streamer.Read(b)
 		// fmt.Printf("Byte: %q\n", b)
 		if bytes.Equal(b, previousByte) {
 			repeatByteCounter++
@@ -101,7 +86,7 @@ func (r *Radio) ReadResponse() (FromRadioPackets []*pb.FromRadio, err error) {
 			repeatByteCounter = 0
 		}
 
-		if err == io.EOF || repeatByteCounter > 20 {
+		if err == io.EOF || repeatByteCounter > 20 || errors.Is(err, os.ErrDeadlineExceeded) {
 			break
 		} else if err != nil {
 			return nil, err
@@ -866,7 +851,5 @@ func (r *Radio) SetLocation(lat float64, long float64, alt int32) error {
 
 // Close closes the serial port. Added so users can defer the close after opening
 func (r *Radio) Close() {
-	if r.serialPort != nil {
-		r.serialPort.Close()
-	}
+	r.streamer.Close()
 }

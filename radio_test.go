@@ -154,19 +154,24 @@ func TestSetRadioPref(t *testing.T) {
 	}
 	defer radio.Close()
 
-	err = radio.SetUserPreferences("WifiApMode", "true")
+	err = radio.SetUserPreferences("SendOwnerInterval", "20")
 	if err != nil {
 		t.Fatalf("Error setting preference: %v", err)
 	}
 
+	// time.Sleep(3 * time.Second)
 	radioPrefs, err := radio.GetRadioPreferences()
 
 	if err != nil {
 		t.Fatalf("Error when opening serial communications with radio: %v", err)
 	}
 
-	if radioPrefs.GetGetRadioResponse().Preferences.GetWifiApMode() != true {
+	if radioPrefs.GetGetRadioResponse().Preferences.GetSendOwnerInterval() != 20 {
 		t.Fatalf("Radio Preference Not Set Correctly")
+	}
+	err = radio.SetUserPreferences("SendOwnerInterval", "0")
+	if err != nil {
+		t.Fatalf("Error setting preference: %v", err)
 	}
 
 }
@@ -312,7 +317,8 @@ func TestSetLocation(t *testing.T) {
 
 func radioSetup() (radio Radio, err error) {
 	radio = Radio{}
-	err = radio.Init("/dev/cu.SLAB_USBtoUART")
+	err = radio.Init("192.168.86.40", true)
+	// err = radio.Init("/dev/cu.SLAB_USBtoUART", false)
 	if err != nil {
 		return Radio{}, err
 	}

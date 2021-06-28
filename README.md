@@ -13,7 +13,9 @@ defer radio.Close()
 ```
 
 This example uses the Mac port name from the ESP32 drivers
-(`cu.SLAB_USBtoUART`) but this will change depending on the OS and the drivers used. Remember to `defer` radio.Close() to close the port that's being used to communicate with the device.
+(`cu.SLAB_USBtoUART`) but this will change depending on the OS and the drivers used. It is possible to communicate with meshtastic radios over TCP as well. Passing in an IP address will automatically have the Radio client choose TCP communications. 
+
+Remember to `defer` radio.Close() to close the port that's being used to communicate with the device.
 
 ## Usage
 

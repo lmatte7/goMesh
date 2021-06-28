@@ -14,18 +14,18 @@ type streamer struct {
 	isTCP      bool
 }
 
-func (s *streamer) Init(addr string, isTCP bool) error {
+func (s *streamer) Init(addr string) error {
 
-	s.isTCP = isTCP
+	ip := net.ParseIP(addr)
 
-	if isTCP {
-		ip := net.ParseIP(addr)
+	if ip != nil {
 		tcpAddr := net.TCPAddr{IP: ip, Port: 4403}
 		conn, err := net.DialTCP("tcp", nil, &tcpAddr)
 		if err != nil {
 			return err
 		}
 		s.netPort = conn
+		s.isTCP = true
 
 	} else {
 		//Configure the serial port
@@ -46,6 +46,7 @@ func (s *streamer) Init(addr string, isTCP bool) error {
 		}
 
 		s.serialPort = port
+		s.isTCP = false
 
 		return nil
 	}

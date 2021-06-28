@@ -27,16 +27,14 @@ const broadcastNum = 0xffffffff
 
 // Radio holds the port and serial io.ReadWriteCloser struct to maintain one serial connection
 type Radio struct {
-	portNumber string
-	serialPort io.ReadWriteCloser
-	streamer   streamer
+	streamer streamer
 }
 
 // Init initializes the Serial connection for the radio
-func (r *Radio) Init(port string, isTCP bool) error {
+func (r *Radio) Init(port string) error {
 
 	streamer := streamer{}
-	err := streamer.Init(port, isTCP)
+	err := streamer.Init(port)
 	if err != nil {
 		return err
 	}

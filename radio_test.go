@@ -317,8 +317,8 @@ func TestSetLocation(t *testing.T) {
 
 func radioSetup() (radio Radio, err error) {
 	radio = Radio{}
-	err = radio.Init("192.168.86.40", true)
-	// err = radio.Init("/dev/cu.SLAB_USBtoUART", false)
+	// err = radio.Init("192.168.86.40")
+	err = radio.Init("/dev/cu.SLAB_USBtoUART")
 	if err != nil {
 		return Radio{}, err
 	}

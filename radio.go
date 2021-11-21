@@ -78,7 +78,7 @@ func (r *Radio) ReadResponse(timeout bool) (FromRadioPackets []*pb.FromRadio, er
 	* bytes is equal to the packet length plus the header
 	 */
 	for {
-		err := r.streamer.Read(b, timeout)
+		err := r.streamer.Read(b)
 		// fmt.Printf("Byte: %q\n", b)
 		if bytes.Equal(b, previousByte) {
 			repeatByteCounter++

@@ -61,7 +61,7 @@ func (r *Radio) sendPacket(protobufPacket []byte) (err error) {
 }
 
 // ReadResponse reads any responses in the serial port, convert them to a FromRadio protobuf and return
-func (r *Radio) ReadResponse() (FromRadioPackets []*pb.FromRadio, err error) {
+func (r *Radio) ReadResponse(timeout bool) (FromRadioPackets []*pb.FromRadio, err error) {
 
 	b := make([]byte, 1)
 
@@ -176,7 +176,7 @@ func (r *Radio) getNodeNum() (nodeNum uint32, err error) {
 
 	r.sendPacket(out)
 
-	radioResponses, err := r.ReadResponse()
+	radioResponses, err := r.ReadResponse(true)
 	if err != nil {
 		return 0, err
 	}
@@ -204,7 +204,7 @@ func (r *Radio) GetRadioInfo() (radioResponses []*pb.FromRadio, err error) {
 
 	r.sendPacket(out)
 
-	radioResponses, err = r.ReadResponse()
+	radioResponses, err = r.ReadResponse(true)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +236,7 @@ func (r *Radio) GetRadioInfo() (radioResponses []*pb.FromRadio, err error) {
 	}
 	r.sendPacket(packetOut)
 
-	newResponses, err := r.ReadResponse()
+	newResponses, err := r.ReadResponse(true)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +277,7 @@ func (r *Radio) GetChannelInfo(channel int) (channelSettings pb.AdminMessage, er
 	}
 	r.sendPacket(packetOut)
 
-	channelResponses, err := r.ReadResponse()
+	channelResponses, err := r.ReadResponse(true)
 	if err != nil {
 		return pb.AdminMessage{}, err
 	}
@@ -327,7 +327,7 @@ func (r *Radio) GetRadioPreferences() (radioPreferences pb.AdminMessage, err err
 	}
 	r.sendPacket(packetOut)
 
-	channelResponses, err := r.ReadResponse()
+	channelResponses, err := r.ReadResponse(true)
 	if err != nil {
 		return pb.AdminMessage{}, err
 	}
@@ -683,6 +683,12 @@ func (r *Radio) SetChannel(chIndex int, key string, value string) error {
 			return err
 		}
 		fv.SetUint(uintValue)
+	case reflect.Int32:
+		uintValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil {
+			return err
+		}
+		fv.SetInt(uintValue)
 	case reflect.Array:
 		arrayValue := []byte(value)
 		fv.SetBytes(arrayValue)
@@ -729,6 +735,10 @@ func (r *Radio) SetUserPreferences(key string, value string) error {
 	preferences, err := r.GetRadioPreferences()
 	if err != nil {
 		return err
+	}
+
+	if preferences.GetGetRadioResponse().GetPreferences() == nil {
+		return errors.New("Radio error")
 	}
 
 	rPref := reflect.ValueOf(preferences.GetGetRadioResponse().GetPreferences())

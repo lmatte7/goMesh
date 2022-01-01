@@ -737,11 +737,14 @@ func (r *Radio) SetUserPreferences(key string, value string) error {
 		return err
 	}
 
-	if preferences.GetGetRadioResponse().GetPreferences() == nil {
-		return errors.New("Radio error")
+	prefs := preferences.GetGetRadioResponse().GetPreferences()
+	if prefs == nil {
+		prefs = preferences.GetGetRadioResponse().GetPreferences()
 	}
-
-	rPref := reflect.ValueOf(preferences.GetGetRadioResponse().GetPreferences())
+	if prefs == nil {
+		return errors.New("empty radio response")
+	}
+	rPref := reflect.ValueOf(prefs)
 
 	rPref = rPref.Elem()
 

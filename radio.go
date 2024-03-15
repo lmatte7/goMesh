@@ -220,7 +220,7 @@ func (r *Radio) GetRadioInfo() (radioResponses []*pb.FromRadio, err error) {
 
 	// Send a second request to retrieve channel information
 	channelInfo := pb.AdminMessage{
-		Variant: &pb.AdminMessage_GetChannelRequest{
+		PayloadVariant: &pb.AdminMessage_GetChannelRequest{
 			GetChannelRequest: 1,
 		},
 	}
@@ -257,8 +257,8 @@ func (r *Radio) GetChannelInfo(channel int) (channelSettings pb.AdminMessage, er
 
 	channel++
 	channelInfo := pb.AdminMessage{
-		Variant: &pb.AdminMessage_GetChannelRequest{
-			GetChannelRequest: uint32(channel),
+		PayloadVariant: &pb.AdminMessage_GetChannelRequest{
+			GetChannelRequest: 0,
 		},
 	}
 
@@ -307,8 +307,8 @@ func (r *Radio) GetRadioPreferences() (radioPreferences pb.AdminMessage, err err
 	}
 
 	radioPref := pb.AdminMessage{
-		Variant: &pb.AdminMessage_GetRadioRequest{
-			GetRadioRequest: true,
+		PayloadVariant: &pb.AdminMessage_GetChannelRequest{
+			GetChannelRequest: 0,
 		},
 	}
 
@@ -402,7 +402,7 @@ func (r *Radio) SetRadioOwner(name string) error {
 	}
 
 	adminPacket := pb.AdminMessage{
-		Variant: &pb.AdminMessage_SetOwner{
+		PayloadVariant: &pb.AdminMessage_SetOwner{
 			SetOwner: &pb.User{
 				LongName:  name,
 				ShortName: name[:3],
@@ -464,14 +464,27 @@ func (r *Radio) SetChannelURL(url string) error {
 		}
 
 		// Send settings to Radio
+		// adminPacket := pb.AdminMessage{
+		// 	Variant: &pb.AdminMessage_SetChannel{
+		// 		SetChannel: &pb.Channel{
+		// 			Index: int32(i),
+		// 			Role:  role,
+		// 			Settings: &pb.ChannelSettings{
+		// 				Psk:         protoChannel.Psk,
+		// 				ModemConfig: protoChannel.ModemConfig,
+		// 			},
+		// 		},
+		// 	},
+		// }
+
 		adminPacket := pb.AdminMessage{
-			Variant: &pb.AdminMessage_SetChannel{
+			PayloadVariant: &pb.AdminMessage_SetChannel{
 				SetChannel: &pb.Channel{
 					Index: int32(i),
 					Role:  role,
 					Settings: &pb.ChannelSettings{
-						Psk:         protoChannel.Psk,
-						ModemConfig: protoChannel.ModemConfig,
+						Psk:            protoChannel.Psk,
+						ModuleSettings: protoChannel.ModuleSettings,
 					},
 				},
 			},
@@ -505,25 +518,18 @@ func (r *Radio) SetModemMode(channel int) error {
 	var modemSetting int
 
 	if channel == 0 {
-		modemSetting = int(pb.ChannelSettings_Bw125Cr48Sf4096)
+		modemSetting = int(pb.Config_LoRaConfig_LONG_FAST)
 	} else {
-		modemSetting = int(pb.ChannelSettings_Bw500Cr45Sf128)
+		modemSetting = int(pb.Config_LoRaConfig_SHORT_FAST)
 	}
 
-	chanSettings, err := r.GetChannelInfo(1)
-	if err != nil {
-		return err
-	}
-
-	// Send settings to Radio
 	adminPacket := pb.AdminMessage{
-		Variant: &pb.AdminMessage_SetChannel{
-			SetChannel: &pb.Channel{
-				Index: 0,
-				Role:  chanSettings.GetGetChannelResponse().GetRole(),
-				Settings: &pb.ChannelSettings{
-					Psk:         chanSettings.GetGetChannelResponse().GetSettings().GetPsk(),
-					ModemConfig: pb.ChannelSettings_ModemConfig(modemSetting),
+		PayloadVariant: &pb.AdminMessage_SetConfig{
+			SetConfig: &pb.Config{
+				PayloadVariant: &pb.Config_Lora{
+					Lora: &pb.Config_LoRaConfig{
+						ModemPreset: pb.Config_LoRaConfig_ModemPreset(modemSetting),
+					},
 				},
 			},
 		},
@@ -561,9 +567,8 @@ func (r *Radio) AddChannel(name string, cIndex int) error {
 		role = pb.Channel_SECONDARY
 	}
 
-	// Send settings to Radio
 	adminPacket := pb.AdminMessage{
-		Variant: &pb.AdminMessage_SetChannel{
+		PayloadVariant: &pb.AdminMessage_SetChannel{
 			SetChannel: &pb.Channel{
 				Index: int32(cIndex),
 				Role:  role,
@@ -610,7 +615,7 @@ func (r *Radio) DeleteChannel(cIndex int) error {
 
 	// Send settings to Radio
 	adminPacket := pb.AdminMessage{
-		Variant: &pb.AdminMessage_SetChannel{
+		PayloadVariant: &pb.AdminMessage_SetChannel{
 			SetChannel: &pb.Channel{
 				Index:    int32(cIndex),
 				Role:     pb.Channel_DISABLED,
@@ -698,7 +703,7 @@ func (r *Radio) SetChannel(chIndex int, key string, value string) error {
 
 	// Send settings to Radio
 	adminPacket := pb.AdminMessage{
-		Variant: &pb.AdminMessage_SetChannel{
+		PayloadVariant: &pb.AdminMessage_SetChannel{
 			SetChannel: &pb.Channel{
 				Index:    int32(chIndex),
 				Role:     channel.GetGetChannelResponse().GetRole(),
@@ -730,89 +735,89 @@ func (r *Radio) SetChannel(chIndex int, key string, value string) error {
 }
 
 // SetUserPreferences allows an freeform setting of values in the RadioConfig_UserPreferences struct
-func (r *Radio) SetUserPreferences(key string, value string) error {
+// func (r *Radio) SetUserPreferences(key string, value string) error {
 
-	preferences, err := r.GetRadioPreferences()
-	if err != nil {
-		return err
-	}
+// 	preferences, err := r.GetRadioPreferences()
+// 	if err != nil {
+// 		return err
+// 	}
 
-	prefs := preferences.GetGetRadioResponse().GetPreferences()
-	if prefs == nil {
-		prefs = preferences.GetGetRadioResponse().GetPreferences()
-	}
-	if prefs == nil {
-		return errors.New("empty radio response")
-	}
-	rPref := reflect.ValueOf(prefs)
+// 	prefs := preferences.GetGetRadioResponse().GetPreferences()
+// 	if prefs == nil {
+// 		prefs = preferences.GetGetRadioResponse().GetPreferences()
+// 	}
+// 	if prefs == nil {
+// 		return errors.New("empty radio response")
+// 	}
+// 	rPref := reflect.ValueOf(prefs)
 
-	rPref = rPref.Elem()
+// 	rPref = rPref.Elem()
 
-	fv := rPref.FieldByName(key)
-	if !fv.IsValid() {
-		return errors.New("unknown Field")
-	}
+// 	fv := rPref.FieldByName(key)
+// 	if !fv.IsValid() {
+// 		return errors.New("unknown Field")
+// 	}
 
-	if !fv.CanSet() {
-		return errors.New("unknown Field")
-	}
+// 	if !fv.CanSet() {
+// 		return errors.New("unknown Field")
+// 	}
 
-	vType := fv.Type()
+// 	vType := fv.Type()
 
-	// The acceptable values that can be set from the command line are uint32 and bool, so only check for those
-	switch vType.Kind() {
-	case reflect.Bool:
-		boolValue, err := strconv.ParseBool(value)
-		if err != nil {
-			return err
-		}
-		fv.SetBool(boolValue)
-	case reflect.Uint32:
-		uintValue, err := strconv.ParseUint(value, 10, 32)
-		if err != nil {
-			return err
-		}
-		fv.SetUint(uintValue)
-	case reflect.Int32:
-		intValue, err := strconv.ParseInt(value, 10, 32)
-		if err != nil {
-			return err
-		}
-		fv.SetInt(intValue)
-	case reflect.String:
-		fv.SetString(value)
+// 	// The acceptable values that can be set from the command line are uint32 and bool, so only check for those
+// 	switch vType.Kind() {
+// 	case reflect.Bool:
+// 		boolValue, err := strconv.ParseBool(value)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		fv.SetBool(boolValue)
+// 	case reflect.Uint32:
+// 		uintValue, err := strconv.ParseUint(value, 10, 32)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		fv.SetUint(uintValue)
+// 	case reflect.Int32:
+// 		intValue, err := strconv.ParseInt(value, 10, 32)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		fv.SetInt(intValue)
+// 	case reflect.String:
+// 		fv.SetString(value)
 
-	}
+// 	}
 
-	// Send settings to Radio
-	adminPacket := pb.AdminMessage{
-		Variant: &pb.AdminMessage_SetRadio{
-			SetRadio: &pb.RadioConfig{
-				Preferences: preferences.GetGetRadioResponse().GetPreferences(),
-			},
-		},
-	}
+// 	// Send settings to Radio
+// 	adminPacket := pb.AdminMessage{
+// 		Variant: &pb.AdminMessage_SetRadio{
+// 			SetRadio: &pb.RadioConfig{
+// 				Preferences: preferences.GetGetRadioResponse().GetPreferences(),
+// 			},
+// 		},
+// 	}
 
-	out, err := proto.Marshal(&adminPacket)
-	if err != nil {
-		return err
-	}
+// 	out, err := proto.Marshal(&adminPacket)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	nodeNum, err := r.getNodeNum()
-	if err != nil {
-		return err
-	}
-	packet, err := r.createAdminPacket(nodeNum, out)
-	if err != nil {
-		return err
-	}
+// 	nodeNum, err := r.getNodeNum()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	packet, err := r.createAdminPacket(nodeNum, out)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	if err := r.sendPacket(packet); err != nil {
-		return err
-	}
+// 	if err := r.sendPacket(packet); err != nil {
+// 		return err
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 // SetLocation sets a fixed location for the radio
 func (r *Radio) SetLocation(lat float64, long float64, alt int32) error {

@@ -4,5 +4,5 @@
 
 Command to generate compiled protobufs
 ```
-protoc  --proto_path==/path/to/protobufs/github.com/lmatte7/goMesh/Meshtastic-protobufs  --go_out=/path/for/compiled/bufs/github.com/lmatte7/goMesh/ *.proto
+protoc --proto_path=/path/to/source/buffs/root/directory/protobufs --go_out=/path/for/compiled/buffs  /path/to/proto/files/*.proto 
 ```

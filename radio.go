@@ -136,7 +136,7 @@ func (r *Radio) ReadResponse(timeout bool) (FromRadioPackets []*pb.FromRadio, er
 
 }
 
-// sendAdminPacket builds a admin message packet to send to the radio
+// createAdminPacket builds a admin message packet to send to the radio
 func (r *Radio) createAdminPacket(nodeNum uint32, payload []byte) (packetOut []byte, err error) {
 
 	radioMessage := pb.ToRadio{
@@ -209,39 +209,13 @@ func (r *Radio) GetRadioInfo() (radioResponses []*pb.FromRadio, err error) {
 		return nil, err
 	}
 
-	// Gather the Node number for channel settings requests
-	var nodeNum uint32
-	nodeNum = 0
-	for _, response := range radioResponses {
-		if info, ok := response.GetPayloadVariant().(*pb.FromRadio_MyInfo); ok {
-			nodeNum = info.MyInfo.MyNodeNum
+	// Try again if we don't get any responses
+	if len(radioResponses) == 0 {
+		radioResponses, err = r.ReadResponse(true)
+		if err != nil {
+			return nil, err
 		}
 	}
-
-	// Send a second request to retrieve channel information
-	channelInfo := pb.AdminMessage{
-		PayloadVariant: &pb.AdminMessage_GetChannelRequest{
-			GetChannelRequest: 1,
-		},
-	}
-
-	out, err = proto.Marshal(&channelInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	packetOut, err := r.createAdminPacket(nodeNum, out)
-	if err != nil {
-		return nil, err
-	}
-	r.sendPacket(packetOut)
-
-	newResponses, err := r.ReadResponse(true)
-	if err != nil {
-		return nil, err
-	}
-
-	radioResponses = append(radioResponses, newResponses...)
 
 	return
 
@@ -258,7 +232,7 @@ func (r *Radio) GetChannelInfo(channel int) (channelSettings pb.AdminMessage, er
 	channel++
 	channelInfo := pb.AdminMessage{
 		PayloadVariant: &pb.AdminMessage_GetChannelRequest{
-			GetChannelRequest: 0,
+			GetChannelRequest: uint32(channel),
 		},
 	}
 
@@ -299,55 +273,6 @@ func (r *Radio) GetChannelInfo(channel int) (channelSettings pb.AdminMessage, er
 
 }
 
-func (r *Radio) GetRadioPreferences() (radioPreferences pb.AdminMessage, err error) {
-
-	nodeNum, err := r.getNodeNum()
-	if err != nil {
-		return pb.AdminMessage{}, err
-	}
-
-	radioPref := pb.AdminMessage{
-		PayloadVariant: &pb.AdminMessage_GetChannelRequest{
-			GetChannelRequest: 0,
-		},
-	}
-
-	out, err := proto.Marshal(&radioPref)
-	if err != nil {
-		return pb.AdminMessage{}, err
-	}
-
-	if err != nil {
-		return pb.AdminMessage{}, err
-	}
-
-	packetOut, err := r.createAdminPacket(nodeNum, out)
-	if err != nil {
-		return pb.AdminMessage{}, err
-	}
-	r.sendPacket(packetOut)
-
-	channelResponses, err := r.ReadResponse(true)
-	if err != nil {
-		return pb.AdminMessage{}, err
-	}
-
-	var channelPacket []byte
-	for _, response := range channelResponses {
-		if packet, ok := response.GetPayloadVariant().(*pb.FromRadio_Packet); ok {
-			if packet.Packet.GetDecoded().GetPortnum() == pb.PortNum_ADMIN_APP {
-				channelPacket = packet.Packet.GetDecoded().GetPayload()
-			}
-		}
-	}
-
-	if err := proto.Unmarshal(channelPacket, &radioPreferences); err != nil {
-		return pb.AdminMessage{}, err
-	}
-
-	return
-}
-
 // SendTextMessage sends a free form text message to other radios
 func (r *Radio) SendTextMessage(message string, to int64) error {
 	var address int64
@@ -359,7 +284,7 @@ func (r *Radio) SendTextMessage(message string, to int64) error {
 
 	// This constant is defined in Constants_DATA_PAYLOAD_LEN, but not in a friendly way to use
 	if len(message) > 240 {
-		return errors.New("Message too large")
+		return errors.New("message too large")
 	}
 
 	rand.Seed(time.Now().UnixNano())
@@ -398,7 +323,7 @@ func (r *Radio) SendTextMessage(message string, to int64) error {
 func (r *Radio) SetRadioOwner(name string) error {
 
 	if len(name) <= 2 {
-		return errors.New("Name too short")
+		return errors.New("name too short")
 	}
 
 	adminPacket := pb.AdminMessage{
@@ -464,19 +389,6 @@ func (r *Radio) SetChannelURL(url string) error {
 		}
 
 		// Send settings to Radio
-		// adminPacket := pb.AdminMessage{
-		// 	Variant: &pb.AdminMessage_SetChannel{
-		// 		SetChannel: &pb.Channel{
-		// 			Index: int32(i),
-		// 			Role:  role,
-		// 			Settings: &pb.ChannelSettings{
-		// 				Psk:         protoChannel.Psk,
-		// 				ModemConfig: protoChannel.ModemConfig,
-		// 			},
-		// 		},
-		// 	},
-		// }
-
 		adminPacket := pb.AdminMessage{
 			PayloadVariant: &pb.AdminMessage_SetChannel{
 				SetChannel: &pb.Channel{
@@ -659,48 +571,54 @@ func (r *Radio) SetChannel(chIndex int, key string, value string) error {
 	}
 
 	channelSettings := channel.GetGetChannelResponse().GetSettings()
+
 	rPref := reflect.ValueOf(channelSettings)
 
 	rPref = rPref.Elem()
 
 	fv := rPref.FieldByName(key)
-	if !fv.IsValid() {
-		return errors.New("unknown Field")
-	}
 
-	if !fv.CanSet() {
-		return errors.New("unknown Field")
-	}
+	if fv.IsValid() && fv.CanSet() {
+		vType := fv.Type()
 
-	vType := fv.Type()
-
-	// The acceptable values that can be set from the command line are uint32 and bool, so only check for those
-	switch vType.Kind() {
-	case reflect.Bool:
-		boolValue, err := strconv.ParseBool(value)
-		if err != nil {
-			return err
+		// The acceptable values that can be set from the command line are uint32 and bool, so only check for those
+		switch vType.Kind() {
+		case reflect.Bool:
+			boolValue, err := strconv.ParseBool(value)
+			if err != nil {
+				return err
+			}
+			fv.SetBool(boolValue)
+		case reflect.Uint32:
+			uintValue, err := strconv.ParseUint(value, 10, 32)
+			if err != nil {
+				return err
+			}
+			fv.SetUint(uintValue)
+		case reflect.Int32:
+			uintValue, err := strconv.ParseInt(value, 10, 32)
+			if err != nil {
+				return err
+			}
+			fv.SetInt(uintValue)
+		case reflect.Array:
+			arrayValue := []byte(value)
+			fv.SetBytes(arrayValue)
+		case reflect.String:
+			fv.SetString(value)
 		}
-		fv.SetBool(boolValue)
-	case reflect.Uint32:
+
+	} else if key == "PositionPrecision" {
 		uintValue, err := strconv.ParseUint(value, 10, 32)
 		if err != nil {
 			return err
 		}
-		fv.SetUint(uintValue)
-	case reflect.Int32:
-		uintValue, err := strconv.ParseInt(value, 10, 32)
-		if err != nil {
-			return err
+		channelSettings.ModuleSettings = &pb.ModuleSettings{
+			PositionPrecision: uint32(uintValue),
 		}
-		fv.SetInt(uintValue)
-	case reflect.Array:
-		arrayValue := []byte(value)
-		fv.SetBytes(arrayValue)
-	case reflect.String:
-		fv.SetString(value)
+	} else {
+		return errors.New("unknown Field")
 	}
-
 	// Send settings to Radio
 	adminPacket := pb.AdminMessage{
 		PayloadVariant: &pb.AdminMessage_SetChannel{
@@ -733,91 +651,6 @@ func (r *Radio) SetChannel(chIndex int, key string, value string) error {
 	return nil
 
 }
-
-// SetUserPreferences allows an freeform setting of values in the RadioConfig_UserPreferences struct
-// func (r *Radio) SetUserPreferences(key string, value string) error {
-
-// 	preferences, err := r.GetRadioPreferences()
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	prefs := preferences.GetGetRadioResponse().GetPreferences()
-// 	if prefs == nil {
-// 		prefs = preferences.GetGetRadioResponse().GetPreferences()
-// 	}
-// 	if prefs == nil {
-// 		return errors.New("empty radio response")
-// 	}
-// 	rPref := reflect.ValueOf(prefs)
-
-// 	rPref = rPref.Elem()
-
-// 	fv := rPref.FieldByName(key)
-// 	if !fv.IsValid() {
-// 		return errors.New("unknown Field")
-// 	}
-
-// 	if !fv.CanSet() {
-// 		return errors.New("unknown Field")
-// 	}
-
-// 	vType := fv.Type()
-
-// 	// The acceptable values that can be set from the command line are uint32 and bool, so only check for those
-// 	switch vType.Kind() {
-// 	case reflect.Bool:
-// 		boolValue, err := strconv.ParseBool(value)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		fv.SetBool(boolValue)
-// 	case reflect.Uint32:
-// 		uintValue, err := strconv.ParseUint(value, 10, 32)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		fv.SetUint(uintValue)
-// 	case reflect.Int32:
-// 		intValue, err := strconv.ParseInt(value, 10, 32)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		fv.SetInt(intValue)
-// 	case reflect.String:
-// 		fv.SetString(value)
-
-// 	}
-
-// 	// Send settings to Radio
-// 	adminPacket := pb.AdminMessage{
-// 		Variant: &pb.AdminMessage_SetRadio{
-// 			SetRadio: &pb.RadioConfig{
-// 				Preferences: preferences.GetGetRadioResponse().GetPreferences(),
-// 			},
-// 		},
-// 	}
-
-// 	out, err := proto.Marshal(&adminPacket)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	nodeNum, err := r.getNodeNum()
-// 	if err != nil {
-// 		return err
-// 	}
-// 	packet, err := r.createAdminPacket(nodeNum, out)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	if err := r.sendPacket(packet); err != nil {
-// 		return err
-// 	}
-
-// 	return nil
-// }
 
 // SetLocation sets a fixed location for the radio
 func (r *Radio) SetLocation(lat float64, long float64, alt int32) error {

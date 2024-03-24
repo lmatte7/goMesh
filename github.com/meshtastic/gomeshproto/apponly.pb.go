@@ -4,7 +4,7 @@
 // 	protoc        v4.25.3
 // source: meshtastic/apponly.proto
 
-package generated
+package gomeshproto
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"

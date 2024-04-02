@@ -41,7 +41,16 @@ for _, response := range responses {
 
 ## Tests
 
-Tests for each major radio function are provided in `radio_test.go`. The full test suite should be run while the machine running the tests is plugged into a meshtastic radio. The current tests are setup to asuume the radio is connected at `/dev/cu.SLAB_USBtoUART` (the default Mac USB address), if the tests are run on another OS this should be changed in `radioSetup()`
+Tests for each major radio function are provided in `radio_test.go`. The full test suite should be run while the machine running the tests is plugged into a meshtastic radio. The test require a command line argument that specifies the port a Meshtastic radio is connected to. 
+To run all test use:  
+```
+go test -args -port=/dev/cu.usbserial-0200674E
+```
+
+To run a single test specify the test to run and use the command: 
+```
+go test -run TestSetChannelURL -args -port=/dev/cu.usbserial-0200674E
+```
 
 ## Feedback
 

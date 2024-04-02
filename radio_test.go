@@ -2,10 +2,14 @@ package gomesh
 
 import (
 	"bytes"
+	"flag"
 	"testing"
+	"time"
 
 	pb "github.com/lmatte7/gomesh/github.com/meshtastic/gomeshproto"
 )
+
+var port = flag.String("port", "", "port the radio is connected to")
 
 func TestRadioInfo(t *testing.T) {
 
@@ -24,6 +28,23 @@ func TestRadioInfo(t *testing.T) {
 		t.Fatalf("Missing Results")
 	}
 
+}
+
+func TestGetChannelInfo(t *testing.T) {
+	radio, err := radioSetup()
+	if err != nil {
+		t.Fatalf("Error when opening serial communications with radio: %v", err)
+	}
+	defer radio.Close()
+
+	channel, err := radio.GetChannelInfo(0)
+	if err != nil {
+		t.Fatalf("Error when retrieving with channel info: %v", err)
+	}
+
+	if channel.Index != 0 {
+		t.Fatalf("Error when retrieving channel: %v", err)
+	}
 }
 
 func TestSendText(t *testing.T) {
@@ -98,7 +119,7 @@ func TestSetChannelURL(t *testing.T) {
 	}
 	defer radio.Close()
 
-	err = radio.SetChannelURL("https://www.meshtastic.org/d/#CgUYAyIBAQ")
+	err = radio.SetChannelURL("https://www.meshtastic.org/c/#ChASBGFzZGYaBGFzZGY6Aggg")
 	if err != nil {
 		t.Fatalf("Error when communicating with radio: %v", err)
 	}
@@ -108,13 +129,9 @@ func TestSetChannelURL(t *testing.T) {
 		t.Fatalf("Error retreiving channel settings: %v", err)
 	}
 
-	psk := []byte("\001")
-	if bytes.Compare(chanSettings.GetGetChannelResponse().GetSettings().GetPsk(), psk) != 0 {
+	psk := []byte("asdf")
+	if !bytes.Equal(chanSettings.Settings.Psk, psk) {
 		t.Fatalf("Channel PSK not set correctly")
-	}
-
-	if chanSettings.GetGetChannelResponse().GetSettings().GetModemConfig() != pb.ChannelSettings_Bw125Cr48Sf4096 {
-		t.Fatalf("Channel modem not set correctly")
 	}
 
 }
@@ -127,51 +144,39 @@ func TestSetModem(t *testing.T) {
 	}
 	defer radio.Close()
 
-	err = radio.SetModemMode(1)
-	if err != nil {
-		t.Fatalf("Error when communicating with radio: %v", err)
-	}
-
-	chanSettings, err := radio.GetChannelInfo(0)
-	if err != nil {
-		t.Fatalf("Error retreiving channel settings: %v", err)
-	}
-
-	if chanSettings.GetGetChannelResponse().GetSettings().GetModemConfig() != pb.ChannelSettings_Bw500Cr45Sf128 {
-		t.Fatalf("Channel modem not set correctly")
-	}
-	err = radio.SetModemMode(0)
+	err = radio.SetModemMode("vls")
 	if err != nil {
 		t.Fatalf("Error when communicating with radio: %v", err)
 	}
 
 }
 
-func TestSetRadioPref(t *testing.T) {
+func TestSetRadioConfig(t *testing.T) {
 	radio, err := radioSetup()
 	if err != nil {
 		t.Fatalf("Error when opening serial communications with radio: %v", err)
 	}
 	defer radio.Close()
 
-	err = radio.SetUserPreferences("SendOwnerInterval", "20")
+	err = radio.SetRadioConfig("DebugLogEnabled", "True")
 	if err != nil {
-		t.Fatalf("Error setting preference: %v", err)
+		t.Fatalf("Error setting config: %v", err)
 	}
 
-	// time.Sleep(3 * time.Second)
-	radioPrefs, err := radio.GetRadioPreferences()
+	time.Sleep(3 * time.Second)
+	configPackets, _, err := radio.GetRadioConfig()
 
 	if err != nil {
 		t.Fatalf("Error when opening serial communications with radio: %v", err)
 	}
 
-	if radioPrefs.GetGetRadioResponse().Preferences.GetSendOwnerInterval() != 20 {
-		t.Fatalf("Radio Preference Not Set Correctly")
-	}
-	err = radio.SetUserPreferences("SendOwnerInterval", "0")
-	if err != nil {
-		t.Fatalf("Error setting preference: %v", err)
+	for _, config := range configPackets {
+
+		if device := config.Config.GetDevice(); device != nil {
+			if !device.DebugLogEnabled {
+				t.Fatalf("Error setting config settings")
+			}
+		}
 	}
 
 }
@@ -190,12 +195,13 @@ func TestAddDeleteChannel(t *testing.T) {
 		t.Fatalf("Error adding channel: %v", err)
 	}
 
+	time.Sleep(2 * time.Second)
 	channel, err := radio.GetChannelInfo(1)
 	if err != nil {
 		t.Fatalf("Error retrieving channel: %v", err)
 	}
 
-	if channel.GetGetChannelResponse().GetSettings().GetName() != chanName {
+	if channel.Settings.Name != chanName {
 		t.Fatalf("Failed to add channel")
 	}
 
@@ -204,18 +210,19 @@ func TestAddDeleteChannel(t *testing.T) {
 		t.Fatalf("Error Deleting channel: %v", err)
 	}
 
+	time.Sleep(2 * time.Second)
 	channel, err = radio.GetChannelInfo(1)
 	if err != nil {
 		t.Fatalf("Error retrieving channel: %v", err)
 	}
 
-	if channel.GetGetChannelResponse().GetRole() != pb.Channel_DISABLED {
+	if channel.Role != pb.Channel_DISABLED {
 		t.Fatalf("Failed to delete channel")
 	}
 
 }
 
-func TestSetChannel(t *testing.T) {
+func TestSetChannelSettings(t *testing.T) {
 
 	radio, err := radioSetup()
 	if err != nil {
@@ -230,42 +237,36 @@ func TestSetChannel(t *testing.T) {
 		t.Fatalf("Error adding channel: %v", err)
 	}
 
+	time.Sleep(2 * time.Second)
 	channel, err := radio.GetChannelInfo(1)
 	if err != nil {
 		t.Fatalf("Error retrieving channel: %v", err)
 	}
 
-	if channel.GetGetChannelResponse().GetSettings().GetName() != chanName {
+	if channel.Settings.Name != chanName {
 		t.Fatalf("Failed to add channel")
 	}
 
-	newName := "new"
-	err = radio.SetChannel(1, "Name", newName)
+	newPsk := "newPsk"
+	err = radio.SetChannel(1, "Psk", newPsk)
 	if err != nil {
 		t.Fatalf("Error changing channel setting: %v", err)
 	}
 
+	time.Sleep(2 * time.Second)
 	channel, err = radio.GetChannelInfo(1)
 	if err != nil {
 		t.Fatalf("Error retrieving channel: %v", err)
 	}
 
-	if channel.GetGetChannelResponse().GetSettings().GetName() != newName {
+	if string(channel.Settings.Psk) != newPsk {
 		t.Fatalf("Failed to change channel")
 	}
 
+	time.Sleep(2 * time.Second)
 	err = radio.DeleteChannel(1)
 	if err != nil {
 		t.Fatalf("Error Deleting channel: %v", err)
-	}
-
-	channel, err = radio.GetChannelInfo(1)
-	if err != nil {
-		t.Fatalf("Error retrieving channel: %v", err)
-	}
-
-	if channel.GetGetChannelResponse().GetRole() != pb.Channel_DISABLED {
-		t.Fatalf("Failed to delete channel")
 	}
 
 }
@@ -318,9 +319,10 @@ func TestSetLocation(t *testing.T) {
 func radioSetup() (radio Radio, err error) {
 	radio = Radio{}
 	// err = radio.Init("192.168.86.40")
-	err = radio.Init("/dev/cu.usbserial-0200674E")
+	err = radio.Init(*port)
 	if err != nil {
 		return Radio{}, err
 	}
+
 	return
 }

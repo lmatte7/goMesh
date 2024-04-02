@@ -31,7 +31,7 @@ func (s *streamer) Init(addr string) error {
 		//Configure the serial port
 		options := serial.OpenOptions{
 			PortName:              addr,
-			BaudRate:              921600,
+			BaudRate:              115200,
 			DataBits:              8,
 			StopBits:              1,
 			MinimumReadSize:       0,

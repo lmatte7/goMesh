@@ -54,4 +54,4 @@ go test -run TestSetChannelURL -args -port=/dev/cu.usbserial-0200674E
 
 ## Feedback
 
-This package is still under development. Any issues or feedback can be submitted to the [issues](https://github.com/lmatte7/meshGo/issues) page.
+This package is still under development. Any issues or feedback can be submitted to the [issues](https://github.com/lmatte7/goMesh/issues) page.

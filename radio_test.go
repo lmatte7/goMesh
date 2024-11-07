@@ -3,9 +3,11 @@ package gomesh
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/lmatte7/gomesh/github.com/meshtastic/gomeshproto"
 	pb "github.com/lmatte7/gomesh/github.com/meshtastic/gomeshproto"
 )
 
@@ -55,7 +57,7 @@ func TestSendText(t *testing.T) {
 	}
 	defer radio.Close()
 
-	err = radio.SendTextMessage("Test", 0)
+	err = radio.SendTextMessage("Test", 0, 1)
 
 	if err != nil {
 		t.Fatalf("Error when communicating with radio: %v", err)
@@ -119,7 +121,7 @@ func TestSetChannelURL(t *testing.T) {
 	}
 	defer radio.Close()
 
-	err = radio.SetChannelURL("https://www.meshtastic.org/c/#ChASBGFzZGYaBGFzZGY6Aggg")
+	err = radio.SetChannelURL("https://www.meshtastic.org/c/#CgoSBGFzZGY6AggNCigSIFUuaekdQ2K8pKQihn9HFxxTgY_QPvepwDvv7MDpFQ0EGgR0ZXN0")
 	if err != nil {
 		t.Fatalf("Error when communicating with radio: %v", err)
 	}
@@ -131,9 +133,13 @@ func TestSetChannelURL(t *testing.T) {
 
 	psk := []byte("asdf")
 	if !bytes.Equal(chanSettings.Settings.Psk, psk) {
-		t.Fatalf("Channel PSK not set correctly")
+		t.Fatalf("Channel PSK not set correctly from URL")
 	}
 
+	err = radio.DeleteChannel(1)
+	if err != nil {
+		t.Fatalf("Error Deleting channel: %v", err)
+	}
 }
 
 func TestSetModem(t *testing.T) {
@@ -173,6 +179,7 @@ func TestSetRadioConfig(t *testing.T) {
 	for _, config := range configPackets {
 
 		if device := config.Config.GetDevice(); device != nil {
+			fmt.Printf("Config Packets: %v\n", device)
 			if !device.DebugLogEnabled {
 				t.Fatalf("Error setting config settings")
 			}
@@ -181,22 +188,31 @@ func TestSetRadioConfig(t *testing.T) {
 
 }
 
-func TestAddDeleteChannel(t *testing.T) {
+func TestAddChannel(t *testing.T) {
 	radio, err := radioSetup()
 	if err != nil {
 		t.Fatalf("Error when opening serial communications with radio: %v", err)
 	}
 	defer radio.Close()
 
-	chanName := "test"
+	// Clear out any existing channels used in testing
+	_ = radio.DeleteChannel(1)
+	time.Sleep(2 * time.Second)
+	_ = radio.DeleteChannel(2)
+	time.Sleep(2 * time.Second)
+	_ = radio.DeleteChannel(3)
+	time.Sleep(2 * time.Second)
 
-	err = radio.AddChannel(chanName, 1)
+	chanName := "test"
+	chanNum := 2
+
+	err = radio.AddChannel(chanName, chanNum)
 	if err != nil {
 		t.Fatalf("Error adding channel: %v", err)
 	}
 
 	time.Sleep(2 * time.Second)
-	channel, err := radio.GetChannelInfo(1)
+	channel, err := radio.GetChannelInfo(chanNum)
 	if err != nil {
 		t.Fatalf("Error retrieving channel: %v", err)
 	}
@@ -205,13 +221,38 @@ func TestAddDeleteChannel(t *testing.T) {
 		t.Fatalf("Failed to add channel")
 	}
 
-	err = radio.DeleteChannel(1)
+}
+
+func TestDeleteChannel(t *testing.T) {
+	radio, err := radioSetup()
+	if err != nil {
+		t.Fatalf("Error when opening serial communications with radio: %v", err)
+	}
+	defer radio.Close()
+
+	// Clear out any existing channels used in testing
+	_ = radio.DeleteChannel(1)
+	time.Sleep(2 * time.Second)
+	_ = radio.DeleteChannel(2)
+	time.Sleep(2 * time.Second)
+	_ = radio.DeleteChannel(3)
+	time.Sleep(2 * time.Second)
+
+	chanName := "test"
+	chanNum := 2
+
+	err = radio.AddChannel(chanName, chanNum)
+	if err != nil {
+		t.Fatalf("Error adding channel: %v", err)
+	}
+
+	err = radio.DeleteChannel(chanNum)
 	if err != nil {
 		t.Fatalf("Error Deleting channel: %v", err)
 	}
 
 	time.Sleep(2 * time.Second)
-	channel, err = radio.GetChannelInfo(1)
+	channel, err := radio.GetChannelInfo(chanNum)
 	if err != nil {
 		t.Fatalf("Error retrieving channel: %v", err)
 	}
@@ -219,7 +260,6 @@ func TestAddDeleteChannel(t *testing.T) {
 	if channel.Role != pb.Channel_DISABLED {
 		t.Fatalf("Failed to delete channel")
 	}
-
 }
 
 func TestSetChannelSettings(t *testing.T) {
@@ -230,15 +270,24 @@ func TestSetChannelSettings(t *testing.T) {
 	}
 	defer radio.Close()
 
-	chanName := "test"
+	// Clear out any existing channels used in testing
+	_ = radio.DeleteChannel(1)
+	time.Sleep(2 * time.Second)
+	_ = radio.DeleteChannel(2)
+	time.Sleep(2 * time.Second)
+	_ = radio.DeleteChannel(3)
+	time.Sleep(2 * time.Second)
 
-	err = radio.AddChannel(chanName, 1)
+	chanName := "test"
+	chanNum := 2
+
+	err = radio.AddChannel(chanName, chanNum)
 	if err != nil {
 		t.Fatalf("Error adding channel: %v", err)
 	}
 
 	time.Sleep(2 * time.Second)
-	channel, err := radio.GetChannelInfo(1)
+	channel, err := radio.GetChannelInfo(chanNum)
 	if err != nil {
 		t.Fatalf("Error retrieving channel: %v", err)
 	}
@@ -248,25 +297,19 @@ func TestSetChannelSettings(t *testing.T) {
 	}
 
 	newPsk := "newPsk"
-	err = radio.SetChannel(1, "Psk", newPsk)
+	err = radio.SetChannel(chanNum, "Psk", newPsk)
 	if err != nil {
 		t.Fatalf("Error changing channel setting: %v", err)
 	}
 
 	time.Sleep(2 * time.Second)
-	channel, err = radio.GetChannelInfo(1)
+	channel, err = radio.GetChannelInfo(chanNum)
 	if err != nil {
 		t.Fatalf("Error retrieving channel: %v", err)
 	}
 
 	if string(channel.Settings.Psk) != newPsk {
 		t.Fatalf("Failed to change channel")
-	}
-
-	time.Sleep(2 * time.Second)
-	err = radio.DeleteChannel(1)
-	if err != nil {
-		t.Fatalf("Error Deleting channel: %v", err)
 	}
 
 }
@@ -279,8 +322,9 @@ func TestSetLocation(t *testing.T) {
 	}
 	defer radio.Close()
 
-	latitude := 32.048164
-	err = radio.SetLocation(latitude, -87.581624, 127)
+	latitude := int32(320602112)
+	longitude := int32(-87818240)
+	err = radio.SetLocation(latitude, longitude, 127)
 	if err != nil {
 		t.Fatalf("Error setting location: %v", err)
 	}
@@ -290,35 +334,24 @@ func TestSetLocation(t *testing.T) {
 		t.Fatalf("Error retreiving radio information: %v", err)
 	}
 
-	nodes := make([]*pb.FromRadio_NodeInfo, 0)
-	var nodeNum uint32
-	nodeNum = 0
+	position := &gomeshproto.Position{}
 
-	for _, response := range radioResponses {
-
-		if nodeInfo, ok := response.GetPayloadVariant().(*pb.FromRadio_NodeInfo); ok {
-			nodes = append(nodes, nodeInfo)
-		}
-
-		if info, ok := response.GetPayloadVariant().(*pb.FromRadio_MyInfo); ok {
-			nodeNum = info.MyInfo.MyNodeNum
-		}
-
-	}
-
-	for _, node := range nodes {
-		if node.NodeInfo.Num == nodeNum {
-			if node.NodeInfo.GetPosition().GetLatitudeI() != int32(latitude) {
-				t.Fatalf("Location not set correctly")
+	for _, packet := range radioResponses {
+		if nodeInfo, ok := packet.GetPayloadVariant().(*gomeshproto.FromRadio_NodeInfo); ok {
+			if nodeInfo.NodeInfo.Num == radio.nodeNum {
+				position = nodeInfo.NodeInfo.Position
 			}
 		}
 	}
 
+	if position.LatitudeI != latitude || position.LongitudeI != longitude {
+		t.Fatalf("Failed to set location")
+	}
 }
 
 func radioSetup() (radio Radio, err error) {
 	radio = Radio{}
-	// err = radio.Init("192.168.86.40")
+
 	err = radio.Init(*port)
 	if err != nil {
 		return Radio{}, err

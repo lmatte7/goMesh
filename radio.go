@@ -24,6 +24,7 @@ const broadcastNum = 0xffffffff
 // Radio holds the port and serial io.ReadWriteCloser struct to maintain one serial connection
 type Radio struct {
 	streamer streamer
+	nodeNum  uint32
 }
 
 // Init initializes the Serial connection for the radio
@@ -35,6 +36,11 @@ func (r *Radio) Init(port string) error {
 		return err
 	}
 	r.streamer = streamer
+
+	err = r.getNodeNum()
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -161,30 +167,31 @@ func (r *Radio) createAdminPacket(nodeNum uint32, payload []byte) (packetOut []b
 }
 
 // getNodeNum returns the current NodeNumber after querying the radio
-func (r *Radio) getNodeNum() (nodeNum uint32, err error) {
+func (r *Radio) getNodeNum() (err error) {
 	// Send first request for Radio and Node information
 	nodeInfo := pb.ToRadio{PayloadVariant: &pb.ToRadio_WantConfigId{WantConfigId: 42}}
 
 	out, err := proto.Marshal(&nodeInfo)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	r.sendPacket(out)
 
-	radioResponses, err := r.ReadResponse(true)
+	radioResponses, err := r.GetRadioInfo()
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	// Gather the Node number for channel settings requests
-	nodeNum = 0
+	nodeNum := uint32(0)
 	for _, response := range radioResponses {
 		if info, ok := response.GetPayloadVariant().(*pb.FromRadio_MyInfo); ok {
 			nodeNum = info.MyInfo.MyNodeNum
 		}
 	}
 
+	r.nodeNum = nodeNum
 	return
 }
 
@@ -200,19 +207,23 @@ func (r *Radio) GetRadioInfo() (radioResponses []*pb.FromRadio, err error) {
 
 	r.sendPacket(out)
 
-	radioResponses, err = r.ReadResponse(true)
-	if err != nil {
-		return nil, err
-	}
+	checks := 0
 
-	// Try again if we don't get any responses
-	if len(radioResponses) == 0 {
+	radioResponses, err = r.ReadResponse(true)
+
+	for checks < 5 && len(radioResponses) == 0 {
 		radioResponses, err = r.ReadResponse(true)
 		if err != nil {
 			return nil, err
 		}
+
+		checks++
+		time.Sleep(1 * time.Second)
 	}
 
+	if len(radioResponses) == 0 {
+		return nil, errors.New("failed to get radio info")
+	}
 	return
 
 }
@@ -285,10 +296,8 @@ func (r *Radio) SetRadioOwner(name string) error {
 		return err
 	}
 
-	nodeNum, err := r.getNodeNum()
-	if err != nil {
-		return err
-	}
+	nodeNum := r.nodeNum
+
 	packet, err := r.createAdminPacket(nodeNum, out)
 	if err != nil {
 		return err
@@ -341,10 +350,8 @@ func (r *Radio) SetModemMode(mode string) error {
 		return err
 	}
 
-	nodeNum, err := r.getNodeNum()
-	if err != nil {
-		return err
-	}
+	nodeNum := r.nodeNum
+
 	packet, err := r.createAdminPacket(nodeNum, out)
 	if err != nil {
 		return err
@@ -359,13 +366,12 @@ func (r *Radio) SetModemMode(mode string) error {
 }
 
 // SetLocation sets a fixed location for the radio
-func (r *Radio) SetLocation(lat float64, long float64, alt int32) error {
+func (r *Radio) SetLocation(lat int32, long int32, alt int32) error {
 
 	positionPacket := pb.Position{
-		LatitudeI:  int32(lat),
-		LongitudeI: int32(long),
-		Altitude:   int32(alt),
-		Time:       0,
+		LatitudeI:  lat,
+		LongitudeI: long,
+		Altitude:   alt,
 	}
 
 	out, err := proto.Marshal(&positionPacket)
@@ -373,10 +379,7 @@ func (r *Radio) SetLocation(lat float64, long float64, alt int32) error {
 		return err
 	}
 
-	nodeNum, err := r.getNodeNum()
-	if err != nil {
-		return err
-	}
+	nodeNum := r.nodeNum
 
 	radioMessage := pb.ToRadio{
 		PayloadVariant: &pb.ToRadio_Packet{
@@ -418,10 +421,8 @@ func (r *Radio) FactoryRest() error {
 		return err
 	}
 
-	nodeNum, err := r.getNodeNum()
-	if err != nil {
-		return err
-	}
+	nodeNum := r.nodeNum
+
 	packet, err := r.createAdminPacket(nodeNum, out)
 	if err != nil {
 		return err

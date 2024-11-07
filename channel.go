@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -16,15 +17,27 @@ import (
 // GetChannelInfo returns the current chanels settings for the radio
 func (r *Radio) GetChannels() (channels []*pb.Channel, err error) {
 
-	info, err := r.GetRadioInfo()
-	if err != nil {
-		return nil, err
+	checks := 0
+
+	for checks < 5 && len(channels) == 0 {
+		info, err := r.GetRadioInfo()
+		if err != nil {
+			return nil, err
+		}
+
+		for _, packet := range info {
+			if channelInfo, ok := packet.GetPayloadVariant().(*gomeshproto.FromRadio_Channel); ok {
+				channels = append(channels, channelInfo.Channel)
+			}
+		}
+
+		// If we didn't get any channels wait and try again
+		time.Sleep(50 * time.Millisecond)
+		checks++
 	}
 
-	for _, packet := range info {
-		if channelInfo, ok := packet.GetPayloadVariant().(*gomeshproto.FromRadio_Channel); ok {
-			channels = append(channels, channelInfo.Channel)
-		}
+	if len(channels) == 0 {
+		return nil, errors.New("no channels found")
 	}
 
 	return channels, nil
@@ -98,10 +111,8 @@ func (r *Radio) SetChannelURL(url string) error {
 			return err
 		}
 
-		nodeNum, err := r.getNodeNum()
-		if err != nil {
-			return err
-		}
+		nodeNum := r.nodeNum
+
 		packet, err := r.createAdminPacket(nodeNum, out)
 		if err != nil {
 			return err
@@ -125,16 +136,25 @@ func (r *Radio) AddChannel(name string, cIndex int) error {
 		role = pb.Channel_SECONDARY
 	}
 
+	// Grab the channel and check if it's disabled, if not return an error
+	curChannel, err := r.GetChannelInfo(cIndex)
+	if err != nil {
+		return errors.New("error getting channel info")
+	}
+
+	if curChannel.Role != pb.Channel_DISABLED {
+		return errors.New("channel already exists")
+	}
+
 	adminPacket := pb.AdminMessage{
 		PayloadVariant: &pb.AdminMessage_SetChannel{
 			SetChannel: &pb.Channel{
 				Index: int32(cIndex),
 				Role:  role,
 				Settings: &pb.ChannelSettings{
-					Psk:             genPSK256(),
-					Name:            name,
-					UplinkEnabled:   false,
-					DownlinkEnabled: false,
+					Psk:            genPSK256(),
+					Name:           name,
+					ModuleSettings: curChannel.Settings.ModuleSettings,
 				},
 			},
 		},
@@ -145,10 +165,8 @@ func (r *Radio) AddChannel(name string, cIndex int) error {
 		return err
 	}
 
-	nodeNum, err := r.getNodeNum()
-	if err != nil {
-		return err
-	}
+	nodeNum := r.nodeNum
+
 	packet, err := r.createAdminPacket(nodeNum, out)
 	if err != nil {
 		return err
@@ -242,10 +260,8 @@ func (r *Radio) SetChannel(chIndex int, key string, value string) error {
 		return err
 	}
 
-	nodeNum, err := r.getNodeNum()
-	if err != nil {
-		return err
-	}
+	nodeNum := r.nodeNum
+
 	packet, err := r.createAdminPacket(nodeNum, out)
 	if err != nil {
 		return err
@@ -287,10 +303,8 @@ func (r *Radio) DeleteChannel(cIndex int) error {
 		return err
 	}
 
-	nodeNum, err := r.getNodeNum()
-	if err != nil {
-		return err
-	}
+	nodeNum := r.nodeNum
+
 	packet, err := r.createAdminPacket(nodeNum, out)
 	if err != nil {
 		return err

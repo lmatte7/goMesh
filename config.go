@@ -17,13 +17,18 @@ func (r *Radio) GetRadioConfig() (configPackets []*pb.FromRadio_Config, modulePa
 		return
 	}
 
-	for _, response := range configResponses {
-		if config, ok := response.GetPayloadVariant().(*pb.FromRadio_Config); ok {
-			configPackets = append(configPackets, config)
+	checks := 0
+	for len(configResponses) == 0 || len(modulePackets) == 0 && checks < 5 {
+		for _, response := range configResponses {
+			if config, ok := response.GetPayloadVariant().(*pb.FromRadio_Config); ok {
+				configPackets = append(configPackets, config)
+			}
+			if moduleConfig, ok := response.GetPayloadVariant().(*pb.FromRadio_ModuleConfig); ok {
+				modulePackets = append(modulePackets, moduleConfig)
+			}
 		}
-		if moduleConfig, ok := response.GetPayloadVariant().(*pb.FromRadio_ModuleConfig); ok {
-			modulePackets = append(modulePackets, moduleConfig)
-		}
+
+		checks++
 	}
 
 	return
@@ -553,10 +558,8 @@ func sendAdminMessage(adminPacket pb.AdminMessage, r *Radio) error {
 		return err
 	}
 
-	nodeNum, err := r.getNodeNum()
-	if err != nil {
-		return err
-	}
+	nodeNum := r.nodeNum
+
 	packet, err := r.createAdminPacket(nodeNum, out)
 	if err != nil {
 		return err

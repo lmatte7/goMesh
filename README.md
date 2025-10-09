@@ -26,7 +26,7 @@ r := gomesh.Radio{}
 responses, err := r.GetRadioInfo()
 if err != nil {
   return err
-})
+}
 ```
 
 In this example the responses could then be read and processed by type to process the data.

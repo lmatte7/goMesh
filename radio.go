@@ -45,8 +45,8 @@ func (r *Radio) Init(port string) error {
 	return nil
 }
 
-// sendPacket takes a protbuf packet, construct the appropriate header and sends it to the radio
-func (r *Radio) sendPacket(protobufPacket []byte) (err error) {
+// SendPacket takes a protbuf packet, construct the appropriate header and sends it to the radio
+func (r *Radio) SendPacket(protobufPacket []byte) (err error) {
 
 	packageLength := len(string(protobufPacket))
 
@@ -176,7 +176,7 @@ func (r *Radio) getNodeNum() (err error) {
 		return err
 	}
 
-	r.sendPacket(out)
+	r.SendPacket(out)
 
 	radioResponses, err := r.GetRadioInfo()
 	if err != nil {
@@ -205,7 +205,7 @@ func (r *Radio) GetRadioInfo() (radioResponses []*pb.FromRadio, err error) {
 		return nil, err
 	}
 
-	r.sendPacket(out)
+	r.SendPacket(out)
 
 	checks := 0
 
@@ -267,7 +267,7 @@ func (r *Radio) SendTextMessage(message string, to int64, channel int64) error {
 		return err
 	}
 
-	if err := r.sendPacket(out); err != nil {
+	if err := r.SendPacket(out); err != nil {
 		return err
 	}
 
@@ -303,7 +303,7 @@ func (r *Radio) SetRadioOwner(name string) error {
 		return err
 	}
 
-	if err := r.sendPacket(packet); err != nil {
+	if err := r.SendPacket(packet); err != nil {
 		return err
 	}
 
@@ -357,7 +357,7 @@ func (r *Radio) SetModemMode(mode string) error {
 		return err
 	}
 
-	if err := r.sendPacket(packet); err != nil {
+	if err := r.SendPacket(packet); err != nil {
 		return err
 	}
 
@@ -402,7 +402,7 @@ func (r *Radio) SetLocation(lat int32, long int32, alt int32) error {
 		return err
 	}
 
-	if err := r.sendPacket(packet); err != nil {
+	if err := r.SendPacket(packet); err != nil {
 		return err
 	}
 
@@ -428,7 +428,7 @@ func (r *Radio) FactoryRest() error {
 		return err
 	}
 
-	if err := r.sendPacket(packet); err != nil {
+	if err := r.SendPacket(packet); err != nil {
 		return err
 	}
 

@@ -110,7 +110,7 @@ func (r *Radio) ReadResponse(timeout bool) (FromRadioPackets []*pb.FromRadio, er
 					processedBytes = emptyByte
 				}
 			} else if pointer >= headerLen {
-				packetLength := int((processedBytes[2] << 8) + processedBytes[3])
+				packetLength := int(processedBytes[2])<<8 | int(processedBytes[3])
 
 				if pointer == headerLen {
 					if packetLength > maxToFromRadioSzie {

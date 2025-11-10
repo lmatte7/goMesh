@@ -87,8 +87,10 @@ func (r *Radio) ReadResponse(timeout bool) (FromRadioPackets []*pb.FromRadio, er
 		} else {
 			repeatByteCounter = 0
 		}
+		// Only break on repeated bytes if we're not in the middle of reading a valid packet
+		shouldBreakOnRepeat := repeatByteCounter > 20 && (len(processedBytes) < headerLen)
 
-		if err == io.EOF || repeatByteCounter > 20 || errors.Is(err, os.ErrDeadlineExceeded) {
+		if err == io.EOF || shouldBreakOnRepeat || errors.Is(err, os.ErrDeadlineExceeded) {
 			break
 		} else if err != nil {
 			return nil, err

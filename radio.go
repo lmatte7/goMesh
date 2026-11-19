@@ -232,6 +232,15 @@ func (r *Radio) GetRadioInfo() (radioResponses []*pb.FromRadio, err error) {
 
 // SendTextMessage sends a free form text message to other radios
 func (r *Radio) SendTextMessage(message string, to int64, channel int64) error {
+	_, err := r.SendTextMessageWithID(message, to, channel)
+	return err
+}
+
+// SendTextMessageWithID sends a free form text message to other radios and
+// returns the packet ID assigned to it. The radio reports the fate of the
+// message in a QueueStatus with this mesh_packet_id and in a ROUTING_APP
+// packet whose request_id matches it (an acknowledgement or an error).
+func (r *Radio) SendTextMessageWithID(message string, to int64, channel int64) (uint32, error) {
 	var address int64
 	if to == 0 {
 		address = broadcastNum
@@ -241,7 +250,7 @@ func (r *Radio) SendTextMessage(message string, to int64, channel int64) error {
 
 	// This constant is defined in Constants_DATA_PAYLOAD_LEN, but not in a friendly way to use
 	if len(message) > 240 {
-		return errors.New("message too large")
+		return 0, errors.New("message too large")
 	}
 
 	rand.Seed(time.Now().UnixNano())
@@ -266,14 +275,14 @@ func (r *Radio) SendTextMessage(message string, to int64, channel int64) error {
 
 	out, err := proto.Marshal(&radioMessage)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if err := r.SendPacket(out); err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return uint32(packetID), nil
 
 }
 
